@@ -971,6 +971,41 @@ body {
   min-width: 300px;
 }
 
+.drone-selection {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 300px;
+}
+
+.drone-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--accent-cyan);
+}
+
+.drone-select {
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  min-width: 250px;
+  flex: 1;
+}
+
+.drone-select:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}
+
+.drone-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 .search-icon {
   position: absolute;
   left: 0.75rem;
@@ -1112,6 +1147,48 @@ body {
 .action-buttons {
   display: flex;
   gap: 0.5rem;
+}
+
+.launch-btn {
+  background: var(--success) !important;
+  color: white !important;
+  border-color: var(--success) !important;
+}
+
+.launch-btn:hover:not(:disabled) {
+  background: #059669 !important;
+  border-color: #059669 !important;
+}
+
+.launch-btn:disabled {
+  background: var(--text-muted) !important;
+  border-color: var(--text-muted) !important;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.drone-info {
+  color: var(--accent-cyan);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.no-drone {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
 
 .empty-table {
@@ -1335,6 +1412,10 @@ body {
   }
   
   .search-bar {
+    min-width: unset;
+  }
+  
+  .drone-selection {
     min-width: unset;
   }
   

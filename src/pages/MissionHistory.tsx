@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   MapPin,
@@ -9,10 +9,12 @@ import {
   Archive,
   BarChart3,
   PieChart,
-  Activity
+  Activity,
+  Play,
+  Plane
 } from 'lucide-react';
-import type { Mission, MissionStatus } from '../types';
-import { mockMissions } from '../services';
+import type { Mission, MissionStatus, Drone } from '../types';
+import { mockMissions, droneService, missionService } from '../services';
 import { formatDate, formatRelativeTime, formatDistance, formatDuration, getStatusColor } from '../utils';
 
 interface FilterState {
@@ -27,6 +29,9 @@ export function MissionHistory() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [selectedMissions, setSelectedMissions] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'analytics'>('table');
+  const [drones, setDrones] = useState<Drone[]>([]);
+  const [selectedDroneId, setSelectedDroneId] = useState<string>('');
+  const [launchingMission, setLaunchingMission] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     status: 'all',
@@ -91,6 +96,9 @@ export function MissionHistory() {
       }
     ];
     setMissions(historicalMissions);
+    
+    // Load available drones
+    droneService.getDrones().then(setDrones);
   }, []);
 
   const filteredMissions = useMemo(() => {
@@ -223,6 +231,71 @@ export function MissionHistory() {
     }
   };
 
+  const handleLaunchMission = async (mission: Mission) => {
+    if (!selectedDroneId) {
+      alert('Please select a drone before launching the mission.');
+      return;
+    }
+
+    const selectedDrone = drones.find(d => d.id === selectedDroneId);
+    if (!selectedDrone) {
+      alert('Selected drone not found.');
+      return;
+    }
+
+    if (selectedDrone.status !== 'available') {
+      alert(`Cannot launch mission. Drone "${selectedDrone.name}" is currently ${selectedDrone.status}.`);
+      return;
+    }
+
+    if (selectedDrone.batteryLevel < 20) {
+      if (!confirm(`Warning: Drone "${selectedDrone.name}" has low battery (${selectedDrone.batteryLevel}%). Continue anyway?`)) {
+        return;
+      }
+    }
+
+    setLaunchingMission(mission.id);
+
+    try {
+      // Create a new mission based on the historical one
+      const newMission = {
+        ...mission,
+        name: `${mission.name} (Relaunched)`,
+        status: 'preparing' as MissionStatus,
+        assignedDroneId: selectedDroneId,
+        notes: `${mission.notes} - Relaunched from history on ${new Date().toLocaleDateString()}`
+      };
+
+      // Create the new mission
+      await missionService.createMission(newMission);
+      
+      // Assign the mission to the drone
+      await droneService.assignMission(selectedDroneId, newMission.id!);
+      
+      // Update drone status
+      await droneService.updateDroneStatus(selectedDroneId, 'active');
+      
+      // Update local drone state
+      setDrones(prev => prev.map(d => 
+        d.id === selectedDroneId 
+          ? { ...d, status: 'active', assignedMissionId: newMission.id }
+          : d
+      ));
+
+      alert(`Mission "${mission.name}" has been successfully launched with drone "${selectedDrone.name}"!`);
+      setSelectedDroneId(''); // Reset drone selection
+    } catch (error) {
+      console.error('Failed to launch mission:', error);
+      alert('Failed to launch mission. Please try again.');
+    } finally {
+      setLaunchingMission(null);
+    }
+  };
+
+  const getAvailableDrones = () => {
+    return drones.filter(drone => drone.status === 'available');
+  };
+
   return (
     <div className="mission-history">
       <div className="history-header">
@@ -258,6 +331,23 @@ export function MissionHistory() {
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                 className="search-input"
               />
+            </div>
+            
+            {/* Drone Selection for Launch */}
+            <div className="drone-selection">
+              <Plane className="drone-icon" />
+              <select
+                value={selectedDroneId}
+                onChange={(e) => setSelectedDroneId(e.target.value)}
+                className="drone-select"
+              >
+                <option value="">Select Drone to Launch</option>
+                {getAvailableDrones().map(drone => (
+                  <option key={drone.id} value={drone.id}>
+                    {drone.name} ({drone.model}) - Battery: {drone.batteryLevel}%
+                  </option>
+                ))}
+              </select>
             </div>
             
             <div className="filter-controls">
@@ -360,6 +450,7 @@ export function MissionHistory() {
                   <th>Duration</th>
                   <th>Distance</th>
                   <th>Waypoints</th>
+                  <th>Assigned Drone</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -399,6 +490,15 @@ export function MissionHistory() {
                     <td>{formatDistance(mission.totalDistance)}</td>
                     <td>{mission.waypoints.length}</td>
                     <td>
+                      {mission.assignedDroneId ? (
+                        <span className="drone-info">
+                          {drones.find(d => d.id === mission.assignedDroneId)?.name || 'Unknown'}
+                        </span>
+                      ) : (
+                        <span className="no-drone">-</span>
+                      )}
+                    </td>
+                    <td>
                       <div className="action-buttons">
                         <button
                           className="btn-icon"
@@ -407,6 +507,20 @@ export function MissionHistory() {
                         >
                           <Eye size={14} />
                         </button>
+                        {(mission.status === 'completed' || mission.status === 'cancelled') && (
+                          <button
+                            className="btn-icon launch-btn"
+                            onClick={() => handleLaunchMission(mission)}
+                            disabled={!selectedDroneId || launchingMission === mission.id}
+                            title={selectedDroneId ? 'Launch Mission with Selected Drone' : 'Select a drone first'}
+                          >
+                            {launchingMission === mission.id ? (
+                              <Activity size={14} className="spinning" />
+                            ) : (
+                              <Play size={14} />
+                            )}
+                          </button>
+                        )}
                         <button
                           className="btn-icon"
                           onClick={() => handleBulkAction('delete')}

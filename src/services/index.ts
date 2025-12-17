@@ -101,20 +101,17 @@ export const mockMissions: Mission[] = [
 class WebSocketService {
   private callbacks: { [key: string]: ((data: unknown) => void)[] } = {};
   private simulationInterval?: number;
-  private isConnected = false;
   private missionState: 'running' | 'paused' | 'stopped' = 'running';
   private currentProgress = 0;
 
   connect() {
     // Simulate WebSocket connection
     console.log('WebSocket connected');
-    this.isConnected = true;
     this.startSimulation();
   }
 
   disconnect() {
     console.log('WebSocket disconnected');
-    this.isConnected = false;
     if (this.simulationInterval) {
       clearInterval(this.simulationInterval);
     }
